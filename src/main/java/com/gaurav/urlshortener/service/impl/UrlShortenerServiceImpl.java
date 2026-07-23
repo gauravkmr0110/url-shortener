@@ -3,6 +3,8 @@ package com.gaurav.urlshortener.service.impl;
 import com.gaurav.urlshortener.dto.request.ShortenUrlRequest;
 import com.gaurav.urlshortener.dto.response.ShortenUrlResponse;
 import com.gaurav.urlshortener.entity.UrlMapping;
+import com.gaurav.urlshortener.exception.AliasAlreadyExistsException;
+import com.gaurav.urlshortener.exception.UrlNotFoundException;
 import com.gaurav.urlshortener.repository.UrlRepository;
 import com.gaurav.urlshortener.service.UrlShortenerService;
 import com.gaurav.urlshortener.util.Base62Generator;
@@ -25,7 +27,7 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
     @Override
     public ShortenUrlResponse shortenUrl(ShortenUrlRequest request) {
 
-        // Check if URL is already shortened
+        // Return existing mapping if URL is already shortened
         UrlMapping existingMapping = urlRepository
                 .findByOriginalUrl(request.getUrl())
                 .orElse(null);
@@ -34,20 +36,32 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
             return buildResponse(existingMapping);
         }
 
-        // Generate unique short code
         String shortCode;
-        do {
-            shortCode = base62Generator.generateShortCode();
-        } while (urlRepository.existsByShortCode(shortCode));
 
-        // Create entity
+        // Use custom alias if provided
+        if (request.getCustomAlias() != null && !request.getCustomAlias().isBlank()) {
+
+            if (urlRepository.existsByShortCode(request.getCustomAlias())) {
+                throw new AliasAlreadyExistsException("Custom alias already exists");
+            }
+
+            shortCode = request.getCustomAlias();
+
+        } else {
+
+            // Generate unique Base62 short code
+            do {
+                shortCode = base62Generator.generateShortCode();
+            } while (urlRepository.existsByShortCode(shortCode));
+
+        }
+
         UrlMapping urlMapping = UrlMapping.builder()
                 .originalUrl(request.getUrl())
                 .shortCode(shortCode)
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        // Save to database
         urlRepository.save(urlMapping);
 
         return buildResponse(urlMapping);
@@ -58,7 +72,7 @@ public class UrlShortenerServiceImpl implements UrlShortenerService {
 
         UrlMapping urlMapping = urlRepository
                 .findByShortCode(shortCode)
-                .orElseThrow(() -> new RuntimeException("Short URL not found"));
+                .orElseThrow(() -> new UrlNotFoundException("Short URL not found"));
 
         return urlMapping.getOriginalUrl();
     }
