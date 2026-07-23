@@ -32,9 +32,9 @@ public class UrlShortenerController {
 
         String originalUrl = urlShortenerService.getOriginalUrl(code);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setLocation(URI.create(originalUrl));
-
-        return new ResponseEntity<>(headers, HttpStatus.MOVED_PERMANENTLY);
+        return ResponseEntity
+                .status(HttpStatus.MOVED_PERMANENTLY)
+                .location(URI.create(originalUrl))
+                .build();
     }
 }
